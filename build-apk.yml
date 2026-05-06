@@ -1,0 +1,46 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install buildozer and dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+        pip install buildozer cython
+
+    - name: Configure buildozer
+      run: |
+        # 如果入口不是 main.py，则复制
+        if [ ! -f main.py ] && [ -f mobile_tracker.py ]; then cp mobile_tracker.py main.py; fi
+        buildozer init
+        sed -i 's/^requirements = .*/requirements = python3,kivy,plyer,requests/' buildozer.spec
+        sed -i 's/^android.permissions = .*/android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION/' buildozer.spec
+        sed -i 's/^#app.title = .*/app.title = 定位追踪/' buildozer.spec
+        sed -i 's/^#package.name = .*/package.name = locationtracker/' buildozer.spec
+        sed -i 's/^#package.domain = .*/package.domain = com.example/' buildozer.spec
+        echo "android.archs = arm64-v8a" >> buildozer.spec
+        echo "pypi_mirror = https://pypi.tuna.tsinghua.edu.cn/simple" >> buildozer.spec
+
+    - name: Build APK
+      run: buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: location-tracker-apk
+        path: bin/*.apk
